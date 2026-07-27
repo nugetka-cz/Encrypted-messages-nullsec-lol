@@ -6,74 +6,232 @@
   <title>Encrypted Messenger</title>
   <style>
     * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
-    body { background: #0f172a; color: #f8fafc; padding: 20px; margin: 0; }
-    h1 { text-align: center; font-size: 1.5rem; }
-    .card { background: #1e293b; padding: 16px; border-radius: 12px; margin-bottom: 16px; }
+    body { background: #0f172a; color: #f8fafc; padding: 16px; margin: 0; }
+    .card { background: #1e293b; padding: 20px; border-radius: 12px; margin-bottom: 16px; border: 1px solid #334155; }
+    h2 { margin-top: 0; font-size: 1.25rem; }
     label { font-size: 0.85rem; color: #94a3b8; display: block; margin-bottom: 6px; }
     input, textarea { width: 100%; background: #0f172a; border: 1px solid #334155; color: #fff; padding: 12px; border-radius: 8px; font-size: 1rem; margin-bottom: 12px; }
     button { width: 100%; background: #38bdf8; color: #0f172a; border: none; padding: 12px; border-radius: 8px; font-weight: bold; font-size: 1rem; cursor: pointer; }
-    .key-display { background: #0f172a; padding: 12px; border-radius: 8px; font-family: monospace; font-size: 0.9rem; word-break: break-all; color: #38bdf8; border: 1px dashed #38bdf8; margin-bottom: 12px; }
-    .encrypted-box { background: #020617; padding: 12px; border-radius: 8px; font-family: monospace; word-break: break-all; color: #4ade80; font-size: 0.85rem; }
+    button.secondary { background: #334155; color: #f8fafc; margin-top: 8px; }
+    .key-box { background: #020617; padding: 12px; border-radius: 8px; font-family: monospace; color: #38bdf8; border: 1px dashed #38bdf8; word-break: break-all; margin-bottom: 12px; }
+    .chat-list-item { padding: 12px; background: #0f172a; border-radius: 8px; margin-bottom: 8px; cursor: pointer; border: 1px solid #334155; display: flex; justify-content: space-between; align-items: center; }
+    .chat-box { background: #0f172a; height: 250px; border-radius: 8px; padding: 12px; overflow-y: auto; margin-bottom: 12px; border: 1px solid #334155; }
+    .msg { margin-bottom: 8px; padding: 8px 12px; border-radius: 8px; max-width: 80%; font-size: 0.95rem; }
+    .msg.me { background: #0284c7; color: white; margin-left: auto; text-align: right; }
+    .msg.them { background: #334155; color: white; margin-right: auto; }
+    .enc-tag { font-size: 0.65rem; opacity: 0.7; display: block; font-family: monospace; margin-top: 4px; }
+    .hidden { display: none !important; }
   </style>
 </head>
 <body>
 
-  <h1>🔒 Key-Based Encrypted Chat</h1>
-
-  <!-- STEP 1: AUTO GENERATED KEY -->
-  <div class="card">
-    <label>1. Your Auto-Generated Secret Key</label>
-    <div id="secretKey" class="key-display">Generating...</div>
-    <button onclick="copyKey()">📋 Copy Login Key</button>
+  <!-- 1. LOGIN SCREEN -->
+  <div id="screenLogin" class="card">
+    <h2>🔒 Login</h2>
+    <label>Enter your 12-Word Secret Key</label>
+    <input type="text" id="loginKeyInput" placeholder="orbit-velvet-timber...">
+    <button onclick="handleLogin()">Login to Dashboard</button>
+    <button class="secondary" onclick="showScreen('screenRegister')">Create New Key</button>
   </div>
 
-  <!-- STEP 2: USERNAME -->
-  <div class="card">
-    <label>2. Choose Your Username</label>
-    <input type="text" id="username" placeholder="e.g. alex42">
+  <!-- 2. REGISTER SCREEN -->
+  <div id="screenRegister" class="card hidden">
+    <h2>✨ Create Account</h2>
+    <label>Choose a Unique Username</label>
+    <input type="text" id="regUsername" placeholder="e.g. alex42">
+    <button onclick="handleRegister()">Check Username & Generate Key</button>
+    
+    <div id="regResult" class="hidden" style="margin-top: 16px;">
+      <label>Your Auto-Generated Login Key (Save This!):</label>
+      <div id="generatedKey" class="key-box"></div>
+      <button onclick="copyGeneratedKey()">📋 Copy Key</button>
+      <button class="secondary" onclick="enterDashboard()">Go to Dashboard</button>
+    </div>
+    <button class="secondary" onclick="showScreen('screenLogin')" style="margin-top: 12px;">Back to Login</button>
   </div>
 
-  <!-- STEP 3: ENCRYPT A MESSAGE -->
-  <div class="card">
-    <label>3. Type a Private Message</label>
-    <textarea id="messageInput" rows="3" placeholder="Type your message here..."></textarea>
-    <button onclick="encryptMessage()">🔒 Encrypt Message</button>
+  <!-- 3. DASHBOARD SCREEN -->
+  <div id="screenDashboard" class="card hidden">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+      <h2 style="margin:0;">💬 Dashboard</h2>
+      <span id="userBadge" style="color:#38bdf8; font-size: 0.9rem;"></span>
+    </div>
+
+    <!-- Search for user -->
+    <label>Find User to Chat</label>
+    <div style="display: flex; gap: 8px; margin-bottom: 16px;">
+      <input type="text" id="searchUser" placeholder="Enter username..." style="margin:0;">
+      <button onclick="startChat()" style="width: auto; padding: 0 16px;">Search</button>
+    </div>
+
+    <!-- Active Chats List -->
+    <label>Open Chats</label>
+    <div id="chatsList"></div>
   </div>
 
-  <!-- RESULT -->
-  <div class="card" id="resultCard" style="display:none;">
-    <label>Encrypted Output (Only legible with the Secret Key):</label>
-    <div id="encryptedOutput" class="encrypted-box"></div>
+  <!-- 4. ACTIVE CHAT ROOM SCREEN -->
+  <div id="screenChat" class="card hidden">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+      <button class="secondary" onclick="showScreen('screenDashboard')" style="width: auto; margin:0; padding: 6px 12px;">← Back</button>
+      <h3 id="activeChatTarget" style="margin:0;"></h3>
+    </div>
+
+    <div id="chatMessages" class="chat-box"></div>
+
+    <textarea id="chatInput" rows="2" placeholder="Type an encrypted message..."></textarea>
+    <button onclick="sendMessage()">🔒 Send Encrypted</button>
   </div>
 
   <script>
     const WORDS = ["orbit", "velvet", "timber", "rocket", "beacon", "shadow", "silver", "pioneer", "atlas", "phoenix", "summit", "canyon"];
-    let mySecretKey = "";
+    
+    // Local database simulation using localStorage
+    let dbUsers = JSON.parse(localStorage.getItem('app_users') || '{}');
+    let dbMessages = JSON.parse(localStorage.getItem('app_messages') || '[]');
 
-    // Auto-generate 12-word passphrase on load
-    function generatePassphrase() {
+    let currentUser = null; // { username, key }
+    let currentTargetUser = null;
+
+    function showScreen(screenId) {
+      ['screenLogin', 'screenRegister', 'screenDashboard', 'screenChat'].forEach(id => {
+        document.getElementById(id).classList.add('hidden');
+      });
+      document.getElementById(screenId).classList.remove('hidden');
+    }
+
+    // LOGIN
+    function handleLogin() {
+      const key = document.getElementById('loginKeyInput').value.trim();
+      if (!key) return alert('Please enter your key!');
+
+      const username = Object.keys(dbUsers).find(user => dbUsers[user] === key);
+      if (!username) return alert('Invalid key! No account found.');
+
+      currentUser = { username, key };
+      enterDashboard();
+    }
+
+    // REGISTER
+    function handleRegister() {
+      const username = document.getElementById('regUsername').value.trim().toLowerCase();
+      if (!username) return alert('Please choose a username!');
+
+      if (dbUsers[username]) {
+        return alert('Username is already taken! Try another one.');
+      }
+
+      // Generate 12-word key
       const randomValues = new Uint32Array(12);
       crypto.getRandomValues(randomValues);
-      return Array.from(randomValues).map(v => WORDS[v % WORDS.length]).join("-");
+      const key = Array.from(randomValues).map(v => WORDS[v % WORDS.length]).join("-");
+
+      // Save user
+      dbUsers[username] = key;
+      localStorage.setItem('app_users', JSON.stringify(dbUsers));
+
+      currentUser = { username, key };
+      document.getElementById('generatedKey').innerText = key;
+      document.getElementById('regResult').classList.remove('hidden');
     }
 
-    mySecretKey = generatePassphrase();
-    document.getElementById("secretKey").innerText = mySecretKey;
-
-    async function copyKey() {
-      await navigator.clipboard.writeText(mySecretKey);
-      alert("Secret key copied to clipboard!");
+    function copyGeneratedKey() {
+      const key = document.getElementById('generatedKey').innerText;
+      navigator.clipboard.writeText(key);
+      alert('Key copied to clipboard!');
     }
 
-    // Simple demo encryption using user key
-    function encryptMessage() {
-      const msg = document.getElementById("messageInput").value;
-      if (!msg) return alert("Please type a message first!");
-      
-      // Scramble text into base64 hex-like string using key
-      const encoded = btoa(encodeURIComponent(msg) + "::" + mySecretKey);
-      document.getElementById("encryptedOutput").innerText = "ENC_" + encoded;
-      document.getElementById("resultCard").style.display = "block";
+    function enterDashboard() {
+      document.getElementById('userBadge').innerText = '@' + currentUser.username;
+      renderChatsList();
+      showScreen('screenDashboard');
+    }
+
+    // SEARCH / START CHAT
+    function startChat() {
+      const target = document.getElementById('searchUser').value.trim().toLowerCase();
+      if (!target) return alert('Enter a username to search!');
+      if (target === currentUser.username) return alert("You can't chat with yourself!");
+      if (!dbUsers[target]) return alert('User not found!');
+
+      openChatRoom(target);
+    }
+
+    function renderChatsList() {
+      const listEl = document.getElementById('chatsList');
+      listEl.innerHTML = '';
+
+      // Find all users this person has talked to
+      const contacts = new Set();
+      dbMessages.forEach(m => {
+        if (m.from === currentUser.username) contacts.add(m.to);
+        if (m.to === currentUser.username) contacts.add(m.from);
+      });
+
+      if (contacts.size === 0) {
+        listEl.innerHTML = '<div style="color:#64748b; text-align:center; padding: 12px;">No active chats. Search a user above!</div>';
+        return;
+      }
+
+      contacts.forEach(contact => {
+        const item = document.createElement('div');
+        item.className = 'chat-list-item';
+        item.innerHTML = `<span><strong>@${contact}</strong></span> <span>🔒 Active</span>`;
+        item.onclick = () => openChatRoom(contact);
+        listEl.appendChild(item);
+      });
+    }
+
+    function openChatRoom(targetUsername) {
+      currentTargetUser = targetUsername;
+      document.getElementById('activeChatTarget').innerText = '@' + targetUsername;
+      renderMessages();
+      showScreen('screenChat');
+    }
+
+    // MESSAGING & ENCRYPTION
+    function sendMessage() {
+      const text = document.getElementById('chatInput').value.trim();
+      if (!text) return;
+
+      // Scramble message payload with encryption simulation
+      const encryptedPayload = btoa(encodeURIComponent(text));
+
+      dbMessages.push({
+        from: currentUser.username,
+        to: currentTargetUser,
+        payload: encryptedPayload,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      });
+
+      localStorage.setItem('app_messages', JSON.stringify(dbMessages));
+      document.getElementById('chatInput').value = '';
+      renderMessages();
+    }
+
+    function renderMessages() {
+      const box = document.getElementById('chatMessages');
+      box.innerHTML = '';
+
+      const conversation = dbMessages.filter(
+        m => (m.from === currentUser.username && m.to === currentTargetUser) ||
+             (m.from === currentTargetUser && m.to === currentUser.username)
+      );
+
+      conversation.forEach(m => {
+        const isMe = m.from === currentUser.username;
+        // Decrypt payload back to readable text
+        const decryptedText = decodeURIComponent(atob(m.payload));
+
+        const msgEl = document.createElement('div');
+        msgEl.className = `msg ${isMe ? 'me' : 'them'}`;
+        msgEl.innerHTML = `
+          <div>${decryptedText}</div>
+          <span class="enc-tag">🔒 ENC: ${m.payload.substring(0, 8)}... (${m.timestamp})</span>
+        `;
+        box.appendChild(msgEl);
+      });
+
+      box.scrollTop = box.scrollHeight;
     }
   </script>
 </body>
